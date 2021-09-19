@@ -26,7 +26,7 @@
 
 
 // Size of array that stores the latest sensor values for Moving-average filter algorithm
-#define WINDOW_SIZE 15 // the larger the Window Size is, the more the filtered signal will lag behind the raw signal
+#define WINDOW_SIZE 20 // the larger the Window Size is, the more the filtered signal will lag behind the raw signal
 
 // Sensor pins I/O on board
 const int trigger = 5;
@@ -36,7 +36,8 @@ const int echo = 2;
 // PROGRAM VARIABLES
 
 int volume; // volume will range from 0 to 255 (don't forget, higher value means lower volume)
-float distance = 0;
+float distance;
+float stime = 0;
 
 // Moving average filter-related variables to clean up noisy sensor data
 int INDEX = 0;
@@ -52,8 +53,8 @@ bool doCalibrate = false;
   Fine Tuning the Instrument Sensitivity, Distances, and Volume Variations
  ****************************************************/
  
-// Default maximum distance value captured by the sensor
-float distanceHigh = 17000;
+// Default maximum sensor time for the sensor
+float stimeHigh = 20000;
 // A lower value would make the volume more responsive to the sensor
 float sensitivityFactor = 0.6; // recommended: from 0.30 to 2.0
 
@@ -64,6 +65,22 @@ float sensitivityFactor = 0.6; // recommended: from 0.30 to 2.0
 
 // create shield object
 Adafruit_VS1053_FilePlayer musicPlayer = Adafruit_VS1053_FilePlayer(SHIELD_RESET, SHIELD_CS, SHIELD_DCS, DREQ, CARDCS);
+
+float distanceFromSensorTime(float sensorTime) {
+  /**
+   * Formula: d = v*t
+   * Distance (d) : distance in meter (m)
+   * Time (t): The sensor measures the time from the moment the wave being sent to moment the wave returns to the sensor. Since we are only interested in the distance between and the object we need to halve our time by divide by 2.
+   * Speed (v): Sonic moves by 343, 2 meters per second (m/s). We have to adjust the unit of Speed. From meters per second to centimetre per microsecond, because the microcontroller measures time in microseconds.
+   * 343, 2 meter per second (m/s) = 0, 03432 centimeter per microsecond (cm/μs)
+   * 
+   * ref. for formula: https://create.arduino.cc/projecthub/pericardium/ultrasonic-distance-sensor-373036
+   **/
+
+   return 0.03432 * (sensorTime/2);
+}
+
+float distanceHigh = distanceFromSensorTime(stimeHigh);
   
 void setup() {
   Serial.begin(9600);
@@ -99,7 +116,8 @@ void setup() {
   }
   
   // Set volume for left, right channels. lower numbers == louder volume!
-  distance = pulseIn(echo, HIGH);
+  stime = pulseIn(echo, HIGH);
+  distance = distanceFromSensorTime(stime);
   volume = (distance/distanceHigh * 255.0) * sensitivityFactor;
   musicPlayer.setVolume(volume, volume);
   
@@ -112,16 +130,16 @@ void ping() {
   digitalWrite(trigger, HIGH);
   digitalWrite(trigger, LOW);
 
-  float tempDistance = pulseIn(echo, HIGH);
-  if (tempDistance != 0) {
-    distance = tempDistance;
-  }
+  float stime = pulseIn(echo, HIGH);
 
-  int volumeValue = (distance/distanceHigh * 255.0) * sensitivityFactor;
-  int averageVolume = movingAverage(volumeValue);
-  
-  if (averageVolume  > 0 && averageVolume  <= 255) {
-    volume = averageVolume ;
+  if (stime != 0) {
+    distance = distanceFromSensorTime(stime);
+    int volumeValue = (distance/distanceHigh * 255.0) * sensitivityFactor;
+    int averageVolume = movingAverage(volumeValue);
+    
+    if (averageVolume  > 0 && averageVolume  <= 255) {
+      volume = averageVolume ;
+    }
   }
 
   Serial.println(volume);
@@ -140,7 +158,7 @@ void loop() {
 
 int movingAverage(int readingVal) {
   // Moving average filter to clean up noisy sensor data
-  // Credits for Algorithm: https://maker.pro/arduino/tutorial/how-to-clean-up-noisy-sensor-data-with-a-moving-average-filter
+  // ref. for algorithm: https://maker.pro/arduino/tutorial/how-to-clean-up-noisy-sensor-data-with-a-moving-average-filter
   SUM = SUM - READINGS[INDEX];       // Remove the oldest entry from the sum
   READINGS[INDEX] = readingVal;           // Add the newest reading to the window
   SUM = SUM + readingVal;                 // Add the newest reading to the sum
