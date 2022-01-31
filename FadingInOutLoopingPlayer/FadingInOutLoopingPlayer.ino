@@ -56,7 +56,7 @@ bool inRange = false;
 // Default maximum sensor time for the sensor
 float distanceHigh = 20000;
 // Threshold Time
-float thresholdTime = 500;
+float thresholdTime = 2000;
 
 
 /*************************************************** 
@@ -115,19 +115,19 @@ void ping() {
 
   float stime = pulseIn(echo, HIGH);
 
-  if (stime != 0) {
-
-    if (stime > thresholdTime) {
-      inRange = true;
-      
-    }
-    else if (stime < thresholdTime) {
-      inRange = false;
-      
-    }
+  if (stime != 0) {    
     
     Serial.println(stime);
-    Serial.println(inRange);
+
+    if (stime > thresholdTime) {
+      inRange = false;
+      Serial.println("turning off");
+    }
+    else if (stime < thresholdTime) {
+      inRange = true;
+      Serial.println("turning on");
+    }
+   
   }
 }
 
@@ -137,7 +137,7 @@ void loop() {
 
     if (inRange) {
         if (volume > 5) {
-            volume = volume - 2;
+            volume = volume - 3;
         } else if (volume <= 5) {
             volume = 0;
         }
